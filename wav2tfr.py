@@ -1,10 +1,12 @@
 from os.path import join, split, splitext
 
 import tensorflow as tf
+import numpy as np
 
-from util.audio import mu_law_encode
+from util.audio import mu_law_encode, mu_law_decode
 from util.wrapper import txt2list
 from dataloader.vctk import make_mu_law_speaker_length
+import librosa
 
 args = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_integer('fs', 16000, 'sampling freq')
@@ -12,77 +14,82 @@ tf.app.flags.DEFINE_string('file_pattern', None, '')
 tf.app.flags.DEFINE_string('output_dir', None, '')
 tf.app.flags.DEFINE_string('speaker_list', None, '')
 tf.app.flags.DEFINE_string('ext', 'wav',
-  'file extension: wav, mp3, mp4, ogg are supported.')
+                           'file extension: wav, mp3, mp4, ogg are supported.')
 
 
 def read_text(filename):
-  ''' dedicated to VCTK '''
-  filename = filename.replace('wav48', 'txt')
-  filename = filename.replace('.wav', '.txt')
-  try:
-    with open(filename, 'r', encoding='utf8') as fp:
-      lines = fp.readlines()
-    lines = ''.join(lines)
-  except FileNotFoundError:
-    print('[WARNING] text not found: {}'.format(filename))
-    lines = ''
-  finally:
-    pass
-  return lines
+    ''' dedicated to VCTK '''
+    filename = filename.replace('wav48', 'txt')
+    filename = filename.replace('.wav', '.txt')
+    try:
+        with open(filename, 'r', encoding='utf8') as fp:
+            lines = fp.readlines()
+        lines = ''.join(lines)
+    except FileNotFoundError:
+        print('[WARNING] text not found: {}'.format(filename))
+        lines = ''
+    finally:
+        pass
+    return lines
 
 
 def main(unused_args):
-  '''
-  NOTE: the directory structure must be [args.dir_to_wav]/[Set]/[speakers]
-  '''
-  if not args.output_dir:
-    raise ValueError('`output_dir` (output dir) should be specified')
+    '''
+    NOTE: the directory structure must be [args.dir_to_wav]/[Set]/[speakers]
+    '''
+    if not args.output_dir:
+        raise ValueError('`output_dir` (output dir) should be specified')
 
-  print('[WARNING] Protobuf is super slow (~7 examples per sec). \n'
-    'This could take 2 hours or more.')
+    print('[WARNING] Protobuf is super slow (~7 examples per sec). \n'
+          'This could take 2 hours or more.')
 
-  reader = tf.WholeFileReader()
-  files = tf.gfile.Glob(args.file_pattern)
-  filename_queue = tf.train.string_input_producer(
-    files,
-    num_epochs=1,
-    shuffle=False)
+    reader = tf.WholeFileReader()
+    files = tf.gfile.Glob(args.file_pattern)
+    filename_queue = tf.train.string_input_producer(
+        files,
+        num_epochs=1,
+        shuffle=False)
 
-  key, val = reader.read(filename_queue)
-  wav = tf.contrib.ffmpeg.decode_audio(val, args.ext, args.fs, 1)
-  wav = tf.reshape(wav, [-1,])
-  mulaw = mu_law_encode(wav)
+    key, val = reader.read(filename_queue)
 
-  for s in txt2list(args.speaker_list):
-    tf.gfile.MakeDirs(join(args.output_dir, s))
+    '''
+    wav = tf.contrib.ffmpeg.decode_audio(val, args.ext, args.fs, 1)
+    wav = tf.reshape(wav, [-1, ])
+    mulaw = mu_law_encode(wav)
+    '''
+    for s in txt2list(args.speaker_list):
+        tf.gfile.MakeDirs(join(args.output_dir, s))
 
-  counter = 1
-  N = len(files)
-  with tf.train.MonitoredSession() as sess:
-    while not sess.should_stop():
+    counter = 1
+    N = len(files)
+    with tf.train.MonitoredSession() as sess:
+        while not sess.should_stop():
+            filename = sess.run(key).decode('utf8')
+            binary, _ = librosa.load(filename)
+            x_int = mu_law_encode(binary)
 
-      filename, x_int = sess.run([key, mulaw])
-      filename = filename.decode('utf8')
+            # TODO: remove this
+            #decoded = mu_law_decode(x_int)
+            #librosa.output.write_wav('testwav-{}.wav', decoded, _)
 
-      text = read_text(filename)
+            text = read_text(filename)
 
-      b, _ = splitext(filename)
-      _, b = split(b)
+            b, _ = splitext(filename)
+            _, b = split(b)
 
-      s = b.split('_')[0]
+            s = b.split('_')[0]
 
-      ex = make_mu_law_speaker_length(x_int, s, text, b)
+            ex = make_mu_law_speaker_length(x_int, s, text, b)
 
-      fp = tf.python_io.TFRecordWriter(
-        join(args.output_dir, s, '{}.tfr'.format(b)))
-      fp.write(ex.SerializeToString())
-      fp.close()
+            fp = tf.python_io.TFRecordWriter(
+                join(args.output_dir, s, '{}.tfr'.format(b)))
+            fp.write(ex.SerializeToString())
+            fp.close()
 
-      print('\rFile {:5d}/{:5d}: {}'.format(counter, N, b), end='')      
-      counter += 1
+            print('\rFile {:5d}/{:5d}: {}'.format(counter, N, b), end='')
+            counter += 1
 
-  print()
-
+    print()
 
 if __name__ == '__main__':
-  tf.app.run()
+    tf.app.run()

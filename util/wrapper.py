@@ -69,7 +69,7 @@ def load(saver, sess, logdir, ckpt=None):
 
 
 def get_default_logdir(logdir_root, msg=''):
-  STARTED_DATESTRING = datetime.now().strftime('%0m%0d-%0H%0M-%0S-%Y')
+  STARTED_DATESTRING = datetime.now().strftime('%m%d-%H%M-%S-%Y')
   logdir = os.path.join(logdir_root, 'train', STARTED_DATESTRING + msg)
   print('Using default logdir: {}'.format(logdir))        
   return logdir

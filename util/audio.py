@@ -8,10 +8,10 @@ def mu_law_encode(audio, quantization_channels=256):
   '''
   with tf.name_scope('encode'):
     mu = quantization_channels - 1
-    safe_audio_abs = tf.minimum(tf.abs(audio), 1.0)
-    magnitude = tf.log(1. + mu * safe_audio_abs) / tf.log(1. + mu)
-    signal = tf.sign(audio) * magnitude
-    return tf.cast((signal + 1) / 2 * mu + 0.5, tf.uint8)
+    safe_audio_abs = np.minimum(np.abs(audio), 1.0)
+    magnitude = np.log1p(mu * safe_audio_abs) / np.log1p(mu)
+    signal = np.sign(audio) * magnitude
+    return ((signal + 1) / 2 * mu + 0.5).astype(np.uint8)
 
 # # Numpy version
 # def mu_law_encode(audio, quantization_channels=256):
@@ -32,9 +32,9 @@ def mu_law_decode(output, quantization_channels=256):
   '''
   with tf.name_scope('decode'):
     mu = quantization_channels - 1
-    signal = 2 * (tf.to_float(output) / mu) - 1
+    signal = 2 * (output.astype('float32') / mu) - 1
     magnitude = (1 / mu) * ((1 + mu)**abs(signal) - 1)
-    return tf.sign(signal) * magnitude
+    return np.sign(signal) * magnitude
 
 
 def gray2jet(x):
