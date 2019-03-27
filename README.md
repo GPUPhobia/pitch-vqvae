@@ -69,9 +69,28 @@ cd ..
 
 pip install -r requirements
 
+pip install librosa
+
 # Convert wav into mu-law encoded sequence
 # The double quotation mark is necessary
 # WARNING: without ffmpeg, this script crashes with inf loop
+
+# to run a mini example using 9 data files from p225 and test the training script, follow:
+
+python wav2tfr.py   \
+  --fs 16000 \
+  --output_dir dataset/VCTK/tfr \
+  --speaker_list "etc/speakers.tsv" \
+  --file_pattern "dataset/VCTK/wav48/p225/p225_00*.wav" 
+
+python main.py \
+  --speaker_list etc/speakers.tsv \
+  --arch architecture.json \
+  --file_pattern "dataset/VCTK/tfr/*/*.tfr" \
+
+
+# generally:
+
 python wav2tfr.py   \
   --fs 16000 \
   --output_dir dataset/VCTK/tfr \
@@ -79,6 +98,9 @@ python wav2tfr.py   \
   --file_pattern "dataset/VCTK/wav48/*/*.wav" 
 
 # [Optional] Generate mu-law encoded wav
+
+# not needed for now. will modify script for use later.
+
 python tfr2wav.py \
   --output_dir dataset/VCTK/mulaw \
   --speaker_list etc/speakers.tsv \
